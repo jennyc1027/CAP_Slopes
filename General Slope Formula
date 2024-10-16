@@ -1,0 +1,6 @@
+[Slope (Degrees)]:
+S = np.sqrt(dX**2 + dY**2 + dZ**2) #general slope computation
+S_cart = np.degrees(S)
+dX_deg = np.degrees(dX)
+dY_deg = np.degrees(dY)
+return S_cart, dX_deg, dY_deg
