@@ -1,0 +1,81 @@
+[Slope aspect general formula]:
+def aspect_calculation(dz_dlon, dz_dlat):
+    aspect = 57.29578 * np.arctan2(dz_dlat, -dz_dlon) #slope aspect computation
+    aspect = np.where(aspect < 0, 90.0 - aspect, aspect)
+    aspect = np.where(aspect > 90.0, 360.0 - aspect + 90.0, aspect)
+    aspect = np.where(aspect <= 90.0, 90.0 - aspect, aspect)
+    return aspect
+lon_coord = 'lon'
+dz_dlat = surface_height1.differentiate(coord=lat_coord)
+dz_dlon = surface_height1.differentiate(coord=lon_coord)
+lat_radians = np.radians(surface_height1[lat_coord])
+lon_radians = np.radians(surface_height1[lon_coord])
+S_cart, dX, dY = gradient_to_cartesian(lon_radians, lat_radians, dz_dlon, dz_dlat)
+aspect = aspect_calculation(dz_dlon, dz_dlat)
+
+
+[complete script for plotting]: 
+import numpy as np
+import xarray as xr
+import matplotlib.pyplot as plt
+
+def polar2XYZ(lon, lat, alt, Re=3400*10**3):
+    lon = np.array(lon)
+    lat = np.array(lat)
+    alt = np.array(alt)
+    R = Re + alt
+    X = R * np.cos(lon) * np.cos(lat)
+    Y = R * np.sin(lon) * np.cos(lat)
+    Z = R * np.sin(lat)
+    return X, Y, Z
+def convert_gradient_to_cartesian(lon, lat, dz_dlon, dz_dlat, Re=3400*10**3):
+    lon, lat = np.meshgrid(lon, lat)
+    X, Y, Z = polar2XYZ(lon, lat, np.zeros_like(lon), Re)
+    dlon = np.gradient(lon, axis=1)
+    dlat = np.gradient(lat, axis=0)
+    dX_dlon = -Re * np.sin(lon) * np.cos(lat) * dlon
+    dY_dlon = Re * np.cos(lon) * np.cos(lat) * dlon
+    dX_dlat = -Re * np.cos(lon) * np.sin(lat) * dlat
+    dY_dlat = -Re * np.sin(lon) * np.sin(lat) * dlat
+    dZ_dlat = Re * np.cos(lat) * dlat
+    dX = dz_dlon * dX_dlon + dz_dlat * dX_dlat
+    dY = dz_dlon * dY_dlon + dz_dlat * dY_dlat
+    dZ = dz_dlat * dZ_dlat
+    S = np.sqrt(dX**2 + dY**2 + dZ**2)
+    S_cart = np.degrees(S)
+    dX_deg = np.degrees(dX)
+    dY_deg = np.degrees(dY)
+    return S_cart, dX_deg, dY_deg
+def calculate_aspect(dz_dlon, dz_dlat):
+    aspect = 57.29578 * np.arctan2(dz_dlat, -dz_dlon)
+    aspect = np.where(aspect < 0, 90.0 - aspect, aspect)
+    aspect = np.where(aspect > 90.0, 360.0 - aspect + 90.0, aspect)
+    aspect = np.where(aspect <= 90.0, 90.0 - aspect, aspect)
+    return aspect
+file_path1 = '/Users/jenny/AmesCAP/mars_data/03847.fixed.nc'
+file_path2 = '/Users/jenny/AmesCAP/mars_data/03847.fixed.nc'
+file_path_topo = '/Users/jenny/AmesCAP/mars_data/03342.fixed.nc'
+dataset1 = xr.open_dataset(file_path1, decode_times=False)
+dataset2 = xr.open_dataset(file_path2, decode_times=False)
+dataset_topo = xr.open_dataset(file_path_topo, decode_times=False)
+surface_height1 = dataset1['zsurf']
+surface_height2 = dataset2['zsurf']
+topography = dataset_topo['zsurf']
+lat_coord = 'lat'
+lon_coord = 'lon'
+dz_dlat = surface_height1.differentiate(coord=lat_coord)
+dz_dlon = surface_height1.differentiate(coord=lon_coord)
+lat_rad = np.radians(surface_height1[lat_coord])
+lon_rad = np.radians(surface_height1[lon_coord])
+S_cart, dX, dY = convert_gradient_to_cartesian(lon_rad, lat_rad, dz_dlon, dz_dlat)
+aspect = calculate_aspect(dz_dlon, dz_dlat)
+plt.figure(figsize=(10, 6))
+levels_aspect = np.linspace(0, 360, 50)  # Aspect contour levels
+plt.contourf(np.degrees(lon_rad), np.degrees(lat_rad), aspect, levels=levels_aspect, cmap='hsv', extend='both')
+plt.colorbar(label='aspect (deg)')
+topo_levels = np.linspace(np.min(topography), np.max(topography), 30)  # More contour levels for topography
+plt.contour(np.degrees(lon_rad), np.degrees(lat_rad), topography, levels=topo_levels, colors='black')
+plt.xlabel('lon')
+plt.ylabel('lat')
+plt.title('slope aspect ')
+plt.show()
