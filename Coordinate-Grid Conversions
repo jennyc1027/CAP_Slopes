@@ -1,0 +1,25 @@
+[Polar to Cartesian Conversion]:
+def polar2cart(lon, lat, alt, Re=3400*10**3):
+    lon = np.array(lon)
+    lat = np.array(lat)
+    alt = np.array(alt)
+    R = Re + alt	
+    X = R * np.cos(lon) * np.cos(lat) #conversion of polar (degrees (lat/lon)) — cartesian (X, Y, Z)
+    Y = R * np.sin(lon) * np.cos(lat)
+    Z = R * np.sin(lat)
+    return X, Y, Z
+
+[Gradient Conversion to Cartesian]:
+def gradient_to_cartesian(lon, lat, dz_dlon, dz_dlat, Re=3400*10**3):
+    lon, lat = np.meshgrid(lon, lat)
+    X, Y, Z = polar2cartlon, lat, np.zeros_like(lon), Re)
+    dlon = np.gradient(lon, axis=1)
+    dlat = np.gradient(lat, axis=0)
+    dX_dlon = -Re * np.sin(lon) * np.cos(lat) * dlon #gradient conversion from polar (deg) to cartesian (x,y,z)
+    dY_dlon = Re * np.cos(lon) * np.cos(lat) * dlon
+    dX_dlat = -Re * np.cos(lon) * np.sin(lat) * dlat 
+    dY_dlat = -Re * np.sin(lon) * np.sin(lat) * dlat
+    dZ_dlat = Re * np.cos(lat) * dlat
+    dX = dz_dlon * dX_dlon + dz_dlat * dX_dlat 
+    dY = dz_dlon * dY_dlon + dz_dlat * dY_dlat
+    dZ = dz_dlat * dZ_dlat
