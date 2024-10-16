@@ -1,0 +1,77 @@
+[Slope azimuth general script]:
+azimuth = np.arctan2(dY, dX) #slope azimuth computation
+azimuth_deg = np.degrees(azimuth)
+azimuth_deg = (azimuth_deg + 360) % 360
+
+NOTE: If we were to manually position north at 0 degrees on the figure, this command would replace the 3rd line: azimuth_deg = (270 - np.degrees(azimuth)) % 360 
+
+
+
+
+[Full script for 3D representation of slope azimuth]: 
+
+import numpy as np
+import xarray as xr
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+def polar2XYZ(lon, lat, alt, Re=3400*10**3):
+    lon = np.array(lon)
+    lat = np.array(lat)
+    alt = np.array(alt)
+    R = Re + alt
+    X = R * np.cos(lon) * np.cos(lat)
+    Y = R * np.sin(lon) * np.cos(lat)
+    Z = R * np.sin(lat)
+    return X, Y, Z
+
+def convert_gradient_to_cartesian(lon, lat, dz_dlon, dz_dlat, Re=3400*10**3):
+    lon, lat = np.meshgrid(lon, lat)
+    X, Y, Z = polar2XYZ(lon, lat, np.zeros_like(lon), Re)  
+    dlon = np.gradient(lon, axis=1)
+    dlat = np.gradient(lat, axis=0)
+    dX_dlon = -Re * np.sin(lon) * np.cos(lat) * dlon
+    dY_dlon = Re * np.cos(lon) * np.cos(lat) * dlon
+    dX_dlat = -Re * np.cos(lon) * np.sin(lat) * dlat
+    dY_dlat = -Re * np.sin(lon) * np.sin(lat) * dlat
+    dZ_dlat = Re * np.cos(lat) * dlat
+    dX = dz_dlon * dX_dlon + dz_dlat * dX_dlat
+    dY = dz_dlon * dY_dlon + dz_dlat * dY_dlat
+    dZ = dz_dlat * dZ_dlat
+    
+    S = np.sqrt(dX**2 + dY**2 + dZ**2)
+    return S, dX, dY
+
+file_path = '/Users/jenny/AmesCAP/mars_data/03847.fixed.nc'
+dataset = xr.open_dataset(file_path, decode_times=False)
+sh = dataset['zsurf']
+lat_coord = 'lat'
+lon_coord = 'lon'
+dz_dlat = sh.differentiate(coord=lat_coord)
+dz_dlon = sh.differentiate(coord=lon_coord)
+lat_rad = np.radians(sh[lat_coord])
+lon_rad = np.radians(sh[lon_coord])
+
+S_cart, dX, dY = convert_gradient_to_cartesian(lon_rad, lat_rad, dz_dlon, dz_dlat) #cartesian coordinates
+St = 360 * np.arctan(S_cart) / (2 * np.pi) #slope in degrees 
+
+azimuth = np.arctan2(dY, dX) 
+azimuth_deg = np.degrees(azimuth)
+azimuth_deg = (azimuth_deg + 360) % 360  
+zsurf_km = sh / 1000.0
+fig = plt.figure(figsize=(12, 8))
+ax = fig.add_subplot(111, projection='3d')
+lon_grid, lat_grid = np.meshgrid(sh[lon_coord], sh[lat_coord])
+lon_grid2 = np.radians(lon_grid)
+lat_grid2 = np.radians(lat_grid)
+surf = ax.plot_surface(lon_grid, lat_grid, zsurf_km, facecolors=plt.cm.hsv(azimuth_deg/360), rstride=1, cstride=1, linewidth=0, antialiased=False)
+m = plt.cm.ScalarMappable(cmap=plt.cm.hsv)
+m.set_array(azimuth_deg)
+cbar = fig.colorbar(m, ax=ax, fraction=0.03, pad=0.1, label='Slope azimuth (deg)')
+cbar.set_ticks(np.linspace(0, 360, 19))  
+cbar.ax.set_yticklabels([f'{int(tick)}°' for tick in np.linspace(0, 360, 19)]) 
+ax.set_title('3D Slope Azimuth; zsurf (km)')
+ax.set_xlabel('Longitude')
+ax.set_ylabel('Latitude')
+ax.set_zlabel('zsurf elevation (km)')
+plt.show()
